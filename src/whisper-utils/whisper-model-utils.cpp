@@ -11,6 +11,17 @@
 
 void update_whisper_model(struct transcription_filter_data *gf)
 {
+	auto now = [] {
+		return std::chrono::steady_clock::now();
+	};
+	auto start = now();
+	auto diff = [&] {
+		auto new_start = now();
+		auto diff = new_start - start;
+		start = new_start;
+		return std::chrono::duration_cast<std::chrono::milliseconds>(diff);
+	};
+
 	if (gf->context == nullptr) {
 		obs_log(LOG_ERROR, "obs_source_t context is null");
 		return;
@@ -21,6 +32,8 @@ void update_whisper_model(struct transcription_filter_data *gf)
 		obs_log(LOG_ERROR, "obs_data_t settings is null");
 		return;
 	}
+
+	obs_log(LOG_INFO, "update_whisper_model: start");
 
 	// Get settings from context
 	std::string new_model_path = obs_data_get_string(s, "whisper_model_path") != nullptr
@@ -70,7 +83,11 @@ void update_whisper_model(struct transcription_filter_data *gf)
 		// check if the new model is external file
 		if (!is_external_model) {
 			// new model is not external file
+			obs_log(LOG_INFO, "update_whisper_model: start shutdown thread %d ms",
+				diff().count());
 			shutdown_whisper_thread(gf);
+			obs_log(LOG_INFO, "update_whisper_model: shutdown thread %d ms",
+				diff().count());
 
 			if (models_info.count(new_model_path) == 0) {
 				obs_log(LOG_WARNING, "Model '%s' does not exist",
@@ -102,8 +119,12 @@ void update_whisper_model(struct transcription_filter_data *gf)
 			} else {
 				// Model exists, just load it
 				gf->whisper_model_path = new_model_path;
+				obs_log(LOG_INFO, "update_whisper_model: begin start thread %d ms",
+					diff().count());
 				start_whisper_thread_with_path(gf, model_file_found,
 							       silero_vad_model_file_str.c_str());
+				obs_log(LOG_INFO, "update_whisper_model: started thread %d ms",
+					diff().count());
 			}
 		} else {
 			// new model is external file, get file location from file property
@@ -116,11 +137,23 @@ void update_whisper_model(struct transcription_filter_data *gf)
 					obs_log(LOG_INFO, "External model file is already loaded");
 					return;
 				} else {
+					obs_log(LOG_INFO,
+						"update_whisper_model: start shutdown thread %d ms",
+						diff().count());
 					shutdown_whisper_thread(gf);
+					obs_log(LOG_INFO,
+						"update_whisper_model: shutdown thread %d ms",
+						diff().count());
 					gf->whisper_model_path = new_model_path;
+					obs_log(LOG_INFO,
+						"update_whisper_model: begin start thread %d ms",
+						diff().count());
 					start_whisper_thread_with_path(
 						gf, external_model_file_path,
 						silero_vad_model_file_str.c_str());
+					obs_log(LOG_INFO,
+						"update_whisper_model: started thread %d ms",
+						diff().count());
 				}
 			}
 		}
@@ -130,6 +163,7 @@ void update_whisper_model(struct transcription_filter_data *gf)
 			gf->whisper_model_path.c_str(), new_model_path.c_str());
 	}
 
+	obs_log(LOG_INFO, "update_whisper_model: do dtw thing %d ms", diff().count());
 	if (new_dtw_timestamps != gf->enable_token_ts_dtw) {
 		// dtw_token_timestamps changed
 		obs_log(gf->log_level, "dtw_token_timestamps changed from %d to %d",
@@ -139,4 +173,5 @@ void update_whisper_model(struct transcription_filter_data *gf)
 		start_whisper_thread_with_path(gf, gf->whisper_model_path,
 					       silero_vad_model_file_str.c_str());
 	}
+	obs_log(LOG_INFO, "update_whisper_model: done dtw thing %d ms", diff().count());
 }

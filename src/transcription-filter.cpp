@@ -173,6 +173,18 @@ void transcription_filter_update(void *data, obs_data_t *s)
 		static_cast<struct transcription_filter_data *>(data);
 	obs_log(gf->log_level, "LocalVocal filter update");
 
+	auto now = [] {
+		return std::chrono::steady_clock::now();
+	};
+	auto start = now();
+	auto diff = [&] {
+		auto new_start = now();
+		auto diff = new_start - start;
+		start = new_start;
+		return std::chrono::duration_cast<std::chrono::milliseconds>(diff);
+	};
+	obs_log(LOG_INFO, "started update");
+
 	gf->log_level = (int)obs_data_get_int(s, "log_level");
 	gf->vad_enabled = obs_data_get_bool(s, "vad_enabled");
 	gf->log_words = obs_data_get_bool(s, "log_words");
@@ -279,6 +291,8 @@ void transcription_filter_update(void *data, obs_data_t *s)
 		}
 	}
 
+	obs_log(LOG_INFO, "continue update %d ms", diff().count());
+
 	bool new_translate = obs_data_get_bool(s, "translate");
 	gf->target_lang = obs_data_get_string(s, "translate_target_language");
 	gf->translation_ctx.add_context = obs_data_get_bool(s, "translate_add_context");
@@ -338,6 +352,7 @@ void transcription_filter_update(void *data, obs_data_t *s)
 		gf->text_source_name = new_text_source_name;
 	}
 
+	obs_log(LOG_INFO, "start update whisper %d ms", diff().count());
 	obs_log(gf->log_level, "update whisper params");
 	{
 		std::lock_guard<std::mutex> lock(gf->whisper_ctx_mutex);
@@ -396,6 +411,7 @@ void transcription_filter_update(void *data, obs_data_t *s)
 		}
 	}
 
+	obs_log(LOG_INFO, "start update_whisper_model %d ms", diff().count());
 	if (gf->context != nullptr && obs_source_enabled(gf->context)) {
 		if (gf->initial_creation) {
 			obs_log(LOG_INFO, "Initial filter creation and source enabled");
@@ -416,6 +432,7 @@ void transcription_filter_update(void *data, obs_data_t *s)
 			}
 		}
 	}
+	obs_log(LOG_INFO, "done update_whisper_model %d ms", diff().count());
 }
 
 void *transcription_filter_create(obs_data_t *settings, obs_source_t *filter)
