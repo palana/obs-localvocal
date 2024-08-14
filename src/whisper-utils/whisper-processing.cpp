@@ -571,6 +571,8 @@ void whisper_loop(void *data)
 	const char *whisper_loop_name = "Whisper loop";
 	profile_register_root(whisper_loop_name, 50 * 1000 * 1000);
 
+	auto loop_start = std::chrono::steady_clock::now();
+
 	// Thread main loop
 	while (true) {
 		ProfileScope(whisper_loop_name);
@@ -602,6 +604,8 @@ void whisper_loop(void *data)
 		if (gf->input_cv.has_value())
 			gf->input_cv->notify_one();
 
+		auto wait_start = std::chrono::steady_clock::now();
+		auto loop_time = wait_start - loop_start;
 		// Sleep using the condition variable wshiper_thread_cv
 		// This will wake up the thread if there is new data in the input buffer
 		// or if the whisper context is null
@@ -609,6 +613,15 @@ void whisper_loop(void *data)
 		if (gf->input_buffers->size == 0) {
 			gf->wshiper_thread_cv.wait_for(lock, std::chrono::milliseconds(50));
 		}
+		auto now = std::chrono::steady_clock::now();
+		obs_log(gf->log_level, "whisper waited %d ms (loop: %d ms, processing: %d ms)",
+			std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now() - wait_start)
+				.count(),
+			std::chrono::duration_cast<std::chrono::milliseconds>(now - loop_start)
+				.count(),
+			std::chrono::duration_cast<std::chrono::milliseconds>(loop_time).count());
+		loop_start = now;
 	}
 
 	obs_log(gf->log_level, "Exiting whisper thread");
