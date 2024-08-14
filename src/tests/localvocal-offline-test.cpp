@@ -492,6 +492,7 @@ int wmain(int argc, wchar_t *argv[])
 				{
 					auto max_wait = start_time_time +
 							(window_number * window_size_in_ms);
+					auto wait_start = std::chrono::system_clock::now();
 					std::unique_lock<std::mutex> lock(gf->whisper_buf_mutex);
 					for (;;) {
 						// sleep up to window size in case whisper is processing, so the buffer builds up similar to OBS
@@ -507,6 +508,44 @@ int wmain(int argc, wchar_t *argv[])
 								return gf->input_buffers->size == 0;
 							});
 					}
+					std::chrono::duration dur = std::chrono::milliseconds(
+						window_number * window_size_in_ms);
+					auto diff =
+						std::chrono::system_clock::now() - start_time_time;
+					obs_log(LOG_INFO,
+						"[file location: %02d:%02lld.%03lld elapsed: %02d:%02lld.%03lld rate: %1.3g] waited %d ms",
+						std::chrono::duration_cast<std::chrono::minutes>(
+							dur)
+							.count(),
+						std::chrono::duration_cast<std::chrono::seconds>(
+							dur)
+								.count() %
+							60,
+						std::chrono::duration_cast<std::chrono::milliseconds>(
+							dur)
+								.count() %
+							1000,
+						std::chrono::duration_cast<std::chrono::minutes>(
+							diff)
+							.count(),
+						std::chrono::duration_cast<std::chrono::seconds>(
+							diff)
+								.count() %
+							60,
+						std::chrono::duration_cast<std::chrono::milliseconds>(
+							diff)
+								.count() %
+							1000,
+						dur.count() /
+							static_cast<double>(
+								std::chrono::duration_cast<
+									std::chrono::milliseconds>(
+									diff)
+									.count()),
+						std::chrono::duration_cast<std::chrono::milliseconds>(
+							std::chrono::system_clock::now() -
+							wait_start)
+							.count());
 					// push back current audio data to input circlebuf
 					for (size_t c = 0; c < gf->channels; c++) {
 						circlebuf_push_back(
