@@ -355,60 +355,65 @@ void transcription_filter_update(void *data, obs_data_t *s)
 	obs_log(LOG_INFO, "start update whisper %d ms", diff().count());
 	obs_log(gf->log_level, "update whisper params");
 	{
-		std::lock_guard<std::mutex> lock(gf->whisper_ctx_mutex);
+		auto update = transcription_filter_data::whisper_params_update_values();
 
-		gf->sentence_psum_accept_thresh =
+		update.sentence_psum_accept_thresh =
 			(float)obs_data_get_double(s, "sentence_psum_accept_thresh");
 
-		gf->whisper_params = whisper_full_default_params(
+		update.whisper_params = whisper_full_default_params(
 			(whisper_sampling_strategy)obs_data_get_int(s, "whisper_sampling_method"));
-		gf->whisper_params.duration_ms = (int)obs_data_get_int(s, "buffer_size_msec");
+		update.whisper_params.duration_ms = (int)obs_data_get_int(s, "buffer_size_msec");
 		if (!new_translate || gf->translation_model_index != "whisper-based-translation") {
 			const char *whisper_language_select =
 				obs_data_get_string(s, "whisper_language_select");
-			gf->whisper_params.language = (whisper_language_select != nullptr &&
-						       strlen(whisper_language_select) > 0)
-							      ? whisper_language_select
-							      : "auto";
+			update.whisper_params.language = (whisper_language_select != nullptr &&
+							  strlen(whisper_language_select) > 0)
+								 ? whisper_language_select
+								 : "auto";
 		} else {
 			// take the language from gf->target_lang
 			if (language_codes_to_whisper.count(gf->target_lang) > 0) {
-				gf->whisper_params.language =
+				update.whisper_params.language =
 					language_codes_to_whisper[gf->target_lang].c_str();
 			} else {
-				gf->whisper_params.language = "auto";
+				update.whisper_params.language = "auto";
 			}
 		}
-		gf->whisper_params.initial_prompt =
+		update.whisper_params.initial_prompt =
 			obs_data_get_string(s, "initial_prompt") != nullptr
 				? obs_data_get_string(s, "initial_prompt")
 				: "";
-		gf->whisper_params.n_threads = (int)obs_data_get_int(s, "n_threads");
-		gf->whisper_params.n_max_text_ctx = (int)obs_data_get_int(s, "n_max_text_ctx");
-		gf->whisper_params.translate = obs_data_get_bool(s, "whisper_translate");
-		gf->whisper_params.no_context = obs_data_get_bool(s, "no_context");
-		gf->whisper_params.single_segment = obs_data_get_bool(s, "single_segment");
-		gf->whisper_params.print_special = obs_data_get_bool(s, "print_special");
-		gf->whisper_params.print_progress = obs_data_get_bool(s, "print_progress");
-		gf->whisper_params.print_realtime = obs_data_get_bool(s, "print_realtime");
-		gf->whisper_params.print_timestamps = obs_data_get_bool(s, "print_timestamps");
-		gf->whisper_params.token_timestamps = obs_data_get_bool(s, "token_timestamps");
-		gf->whisper_params.thold_pt = (float)obs_data_get_double(s, "thold_pt");
-		gf->whisper_params.thold_ptsum = (float)obs_data_get_double(s, "thold_ptsum");
-		gf->whisper_params.max_len = (int)obs_data_get_int(s, "max_len");
-		gf->whisper_params.split_on_word = obs_data_get_bool(s, "split_on_word");
-		gf->whisper_params.max_tokens = (int)obs_data_get_int(s, "max_tokens");
-		gf->whisper_params.suppress_blank = obs_data_get_bool(s, "suppress_blank");
-		gf->whisper_params.suppress_non_speech_tokens =
+		update.whisper_params.n_threads = (int)obs_data_get_int(s, "n_threads");
+		update.whisper_params.n_max_text_ctx = (int)obs_data_get_int(s, "n_max_text_ctx");
+		update.whisper_params.translate = obs_data_get_bool(s, "whisper_translate");
+		update.whisper_params.no_context = obs_data_get_bool(s, "no_context");
+		update.whisper_params.single_segment = obs_data_get_bool(s, "single_segment");
+		update.whisper_params.print_special = obs_data_get_bool(s, "print_special");
+		update.whisper_params.print_progress = obs_data_get_bool(s, "print_progress");
+		update.whisper_params.print_realtime = obs_data_get_bool(s, "print_realtime");
+		update.whisper_params.print_timestamps = obs_data_get_bool(s, "print_timestamps");
+		update.whisper_params.token_timestamps = obs_data_get_bool(s, "token_timestamps");
+		update.whisper_params.thold_pt = (float)obs_data_get_double(s, "thold_pt");
+		update.whisper_params.thold_ptsum = (float)obs_data_get_double(s, "thold_ptsum");
+		update.whisper_params.max_len = (int)obs_data_get_int(s, "max_len");
+		update.whisper_params.split_on_word = obs_data_get_bool(s, "split_on_word");
+		update.whisper_params.max_tokens = (int)obs_data_get_int(s, "max_tokens");
+		update.whisper_params.suppress_blank = obs_data_get_bool(s, "suppress_blank");
+		update.whisper_params.suppress_non_speech_tokens =
 			obs_data_get_bool(s, "suppress_non_speech_tokens");
-		gf->whisper_params.temperature = (float)obs_data_get_double(s, "temperature");
-		gf->whisper_params.max_initial_ts = (float)obs_data_get_double(s, "max_initial_ts");
-		gf->whisper_params.length_penalty = (float)obs_data_get_double(s, "length_penalty");
+		update.whisper_params.temperature = (float)obs_data_get_double(s, "temperature");
+		update.whisper_params.max_initial_ts =
+			(float)obs_data_get_double(s, "max_initial_ts");
+		update.whisper_params.length_penalty =
+			(float)obs_data_get_double(s, "length_penalty");
 
 		if (gf->vad_enabled && gf->vad) {
 			const float vad_threshold = (float)obs_data_get_double(s, "vad_threshold");
-			gf->vad->set_threshold(vad_threshold);
+			update.new_vad_threshold.emplace(vad_threshold);
 		}
+
+		auto lock = std::lock_guard(gf->whisper_params_update_mutex);
+		gf->whisper_params_update.emplace(std::move(update));
 	}
 
 	obs_log(LOG_INFO, "start update_whisper_model %d ms", diff().count());

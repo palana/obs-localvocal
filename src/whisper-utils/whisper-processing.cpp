@@ -576,6 +576,12 @@ void whisper_loop(void *data)
 	// Thread main loop
 	while (true) {
 		ProfileScope(whisper_loop_name);
+		decltype(gf->whisper_params_update) local_update = std::nullopt;
+		{
+			auto lock = std::lock_guard(gf->whisper_params_update_mutex);
+			local_update = std::move(gf->whisper_params_update);
+			gf->whisper_params_update.reset();
+		}
 		{
 			ProfileScope("lock whisper ctx");
 			std::lock_guard<std::mutex> lock(gf->whisper_ctx_mutex);
@@ -583,6 +589,12 @@ void whisper_loop(void *data)
 			if (gf->whisper_context == nullptr) {
 				obs_log(LOG_WARNING, "Whisper context is null, exiting thread");
 				break;
+			}
+			if (local_update.has_value()) {
+				gf->sentence_psum_accept_thresh = local_update->sentence_psum_accept_thresh;
+				gf->whisper_params = std::move(local_update->whisper_params);
+				if (local_update->new_vad_threshold.has_value() && gf->vad)
+					gf->vad->set_threshold(*local_update->new_vad_threshold);
 			}
 		}
 

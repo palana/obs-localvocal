@@ -50,6 +50,15 @@ struct transcription_filter_data {
 	audio_resampler_t *resampler_to_whisper;
 	struct circlebuf resampled_buffer;
 
+	struct whisper_params_update_values {
+		float sentence_psum_accept_thresh;
+		whisper_full_params whisper_params;
+		std::optional<float> new_vad_threshold;
+	};
+
+	std::mutex whisper_params_update_mutex;
+	std::optional<whisper_params_update_values> whisper_params_update;
+
 	/* whisper */
 	std::string whisper_model_path;
 	struct whisper_context *whisper_context;
