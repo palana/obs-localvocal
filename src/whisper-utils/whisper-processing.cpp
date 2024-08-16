@@ -329,6 +329,18 @@ void run_inference_and_callbacks(transcription_filter_data *gf, uint64_t start_o
 
 vad_state vad_based_segmentation(transcription_filter_data *gf, vad_state last_vad_state)
 {
+	auto now = [] {
+		return std::chrono::steady_clock::now();
+	};
+	auto start = now();
+	auto diff = [&] {
+		auto new_start = now();
+		auto diff = new_start - start;
+		start = new_start;
+		return std::chrono::duration_cast<std::chrono::milliseconds>(diff);
+	};
+	obs_log(LOG_INFO, "started vad based segmentation %d", 0);
+
 	uint32_t num_frames_from_infos = 0;
 	uint64_t start_timestamp_offset_ns = 0;
 	uint64_t end_timestamp_offset_ns = 0;
@@ -426,11 +438,14 @@ vad_state vad_based_segmentation(transcription_filter_data *gf, vad_state last_v
 	circlebuf_pop_front(&gf->resampled_buffer, vad_input.data(),
 			    vad_input.size() * sizeof(float));
 
+	obs_log(LOG_INFO, "starting processing in vad after %d ms", diff().count());
+
 	obs_log(gf->log_level, "sending %d frames to vad", vad_input.size());
 	{
 		ProfileScope("vad->process");
 		gf->vad->process(vad_input, !last_vad_state.vad_on);
 	}
+	obs_log(LOG_INFO, "finished processing in vad after %d ms", diff().count());
 
 	const uint64_t start_ts_offset_ms = start_timestamp_offset_ns / 1000000;
 	const uint64_t end_ts_offset_ms = end_timestamp_offset_ns / 1000000;
@@ -443,9 +458,12 @@ vad_state vad_based_segmentation(transcription_filter_data *gf, vad_state last_v
 		obs_log(gf->log_level, "VAD detected no speech in %u frames", vad_input.size());
 		if (last_vad_state.vad_on) {
 			obs_log(gf->log_level, "Last VAD was ON: segment end -> send to inference");
+			obs_log(LOG_INFO, "(stamps is empty) starting processing in whisper after %d ms", diff().count());
 			run_inference_and_callbacks(gf, last_vad_state.start_ts_offest_ms,
 						    last_vad_state.end_ts_offset_ms,
 						    VAD_STATE_WAS_ON);
+			obs_log(LOG_INFO, "(stamps is empty) finished processing in whisper after %d ms",
+				diff().count());
 			current_vad_state.last_partial_segment_end_ts = 0;
 		}
 
@@ -500,9 +518,13 @@ vad_state vad_based_segmentation(transcription_filter_data *gf, vad_state last_v
 			// find the end timestamp of the segment
 			const uint64_t segment_end_ts =
 				start_ts_offset_ms + end_frame * 1000 / WHISPER_SAMPLE_RATE;
+			obs_log(LOG_INFO, "starting processing in whisper after %d ms",
+				diff().count());
 			run_inference_and_callbacks(
 				gf, last_vad_state.start_ts_offest_ms, segment_end_ts,
 				last_vad_state.vad_on ? VAD_STATE_WAS_ON : VAD_STATE_WAS_OFF);
+			obs_log(LOG_INFO, "finished processing in whisper after %d ms",
+				diff().count());
 			current_vad_state.vad_on = false;
 			current_vad_state.start_ts_offest_ms = current_vad_state.end_ts_offset_ms;
 			current_vad_state.end_ts_offset_ms = 0;
@@ -545,9 +567,13 @@ vad_state vad_based_segmentation(transcription_filter_data *gf, vad_state last_v
 				current_vad_state.end_ts_offset_ms;
 			// send partial segment to inference
 			obs_log(gf->log_level, "Partial segment -> send to inference");
+			obs_log(LOG_INFO, "starting partial processing in whisper after %d ms",
+				diff().count());
 			run_inference_and_callbacks(gf, current_vad_state.start_ts_offest_ms,
 						    current_vad_state.end_ts_offset_ms,
 						    VAD_STATE_PARTIAL);
+			obs_log(LOG_INFO, "finsihed partial processing in whisper after %d ms",
+				diff().count());
 		}
 	}
 
