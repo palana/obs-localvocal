@@ -185,7 +185,8 @@ void transcription_filter_update(void *data, obs_data_t *s)
 	};
 	obs_log(LOG_INFO, "started update");
 
-	gf->log_level = (int)obs_data_get_int(s, "log_level");
+	gf->log_level = LOG_INFO;
+	 //(int)obs_data_get_int(s, "log_level");
 	gf->vad_enabled = obs_data_get_bool(s, "vad_enabled");
 	gf->log_words = obs_data_get_bool(s, "log_words");
 	gf->caption_to_stream = obs_data_get_bool(s, "caption_to_stream");
@@ -454,7 +455,8 @@ void *transcription_filter_create(obs_data_t *settings, obs_source_t *filter)
 	gf->last_num_frames = 0;
 	gf->min_sub_duration = (int)obs_data_get_int(settings, "min_sub_duration");
 	gf->last_sub_render_time = now_ms();
-	gf->log_level = (int)obs_data_get_int(settings, "log_level");
+	gf->log_level = LOG_INFO;
+	 //(int)obs_data_get_int(settings, "log_level");
 	gf->save_srt = obs_data_get_bool(settings, "subtitle_save_srt");
 	gf->truncate_output_file = obs_data_get_bool(settings, "truncate_output_file");
 	gf->save_only_while_recording = obs_data_get_bool(settings, "only_while_recording");
